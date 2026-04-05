@@ -6,10 +6,19 @@ echo "🔄 正在备份并修改 SSH 配置关闭密码登录..."
 # 1. 备份配置文件
 cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak_pwd_$(date +%s)
 
-# 2. 获取主配置和所有引用文件
+# 2. 先检查 root 是否已配置 SSH 公钥
+if [ ! -f /root/.ssh/authorized_keys ] || [ ! -s /root/.ssh/authorized_keys ]; then
+    echo "❌ 未检测到 /root/.ssh/authorized_keys，或文件为空。"
+    echo "请先确认 root 的 SSH key 登录可用，再运行本脚本。"
+    exit 1
+fi
+
+echo "✅ 已检测到 root SSH 公钥，继续执行。"
+
+# 3. 获取主配置和所有引用文件
 FILES=$(find /etc/ssh/sshd_config /etc/ssh/sshd_config.d/ -type f 2>/dev/null)
 
-# 3. 遍历修改密码验证和键盘交互验证为 no
+# 4. 遍历修改密码验证和键盘交互验证为 no
 for f in $FILES; do
     sed -i -E "s/^#?[[:space:]]*PasswordAuthentication[[:space:]]+.*/PasswordAuthentication no/i" "$f"
     sed -i -E "s/^#?[[:space:]]*KbdInteractiveAuthentication[[:space:]]+.*/KbdInteractiveAuthentication no/i" "$f"
