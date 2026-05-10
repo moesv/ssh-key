@@ -128,6 +128,7 @@ apply_ssh_port() {
 
 # 1. 检查 root 是否已配置 SSH 公钥；支持添加 1 条或多条
 ensure_tty
+KEYS_PREEXISTED=0
 if ! has_valid_key; then
     echo "⚠️  未检测到有效的 root SSH 公钥（$AUTH_KEYS 不存在 / 为空 / 无合法公钥）。"
     echo ""
@@ -147,6 +148,7 @@ if ! has_valid_key; then
         exit 1
     fi
 else
+    KEYS_PREEXISTED=1
     echo "✅ 已检测到 $(key_count) 条 root SSH 公钥。"
     echo ""
     echo "是否需要再添加更多公钥？"
@@ -162,24 +164,30 @@ fi
 echo ""
 echo "📋 当前 $AUTH_KEYS 里共有 $(key_count) 条合法公钥。"
 
-# 2. SSH 端口设置（直接随机，y/n 确认）
+# 2. SSH 端口设置：只有初次配置（脚本运行前没有公钥）才提示改端口；
+#    已有公钥的环境通常已经走通既有端口，不做打扰。
 ensure_tty
 CUR_PORT="$(current_ssh_port)"
-SUGGEST="$(random_high_port || true)"
-
 NEW_PORT=""
-echo ""
-echo "🔧 SSH 端口设置"
-echo "    当前端口: ${CUR_PORT}"
-if [ -n "${SUGGEST}" ]; then
-    echo "    随机端口: ${SUGGEST}  (50000-65530 内未占用)"
-    read -r -p "是否切换到随机端口 ${SUGGEST}? [Y/n] (回车=切换): " port_choice
-    case "${port_choice:-Y}" in
-        n|N) echo "保持当前端口 ${CUR_PORT}" ;;
-        *)   NEW_PORT="$SUGGEST" ;;
-    esac
+
+if [ "$KEYS_PREEXISTED" = "1" ]; then
+    echo ""
+    echo "🔧 检测到已存在公钥，跳过端口修改（保持当前端口 ${CUR_PORT}）。"
 else
-    echo "⚠️  无法生成可用的随机端口，保持当前端口 ${CUR_PORT}"
+    SUGGEST="$(random_high_port || true)"
+    echo ""
+    echo "🔧 SSH 端口设置"
+    echo "    当前端口: ${CUR_PORT}"
+    if [ -n "${SUGGEST}" ]; then
+        echo "    随机端口: ${SUGGEST}  (50000-65530 内未占用)"
+        read -r -p "是否切换到随机端口 ${SUGGEST}? [Y/n] (回车=切换): " port_choice
+        case "${port_choice:-Y}" in
+            n|N) echo "保持当前端口 ${CUR_PORT}" ;;
+            *)   NEW_PORT="$SUGGEST" ;;
+        esac
+    else
+        echo "⚠️  无法生成可用的随机端口，保持当前端口 ${CUR_PORT}"
+    fi
 fi
 
 # 3. 最终确认（所有选项都收齐后，最后一道闸）
