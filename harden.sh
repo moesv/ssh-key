@@ -8,13 +8,21 @@ ensure_tty() {
     if [ ! -t 0 ]; then
         echo "❌ 当前没有可交互的终端 (stdin 不是 tty)。"
         echo "请先把脚本下载到本地再运行："
-        echo "  curl -fsSL <url> -o disable-root-password-login.sh && bash disable-root-password-login.sh"
+        echo "  curl -fsSL <url> -o harden.sh && bash harden.sh"
         exit 1
     fi
 }
 
 has_valid_key() {
     [ -f "$AUTH_KEYS" ] && [ -s "$AUTH_KEYS" ] && grep -qE "$PUBKEY_REGEX" "$AUTH_KEYS"
+}
+
+key_count() {
+    if [ -f "$AUTH_KEYS" ]; then
+        grep -cE "$PUBKEY_REGEX" "$AUTH_KEYS" 2>/dev/null || echo 0
+    else
+        echo 0
+    fi
 }
 
 add_pubkey_interactively() {
@@ -26,12 +34,12 @@ add_pubkey_interactively() {
     pubkey="$(printf '%s' "$pubkey" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 
     if [ -z "$pubkey" ]; then
-        echo "❌ 没有读取到任何内容，已中止。"
-        exit 1
+        echo "⚠️  没有读取到任何内容，跳过本次添加。"
+        return 1
     fi
     if ! printf '%s\n' "$pubkey" | grep -qE "$PUBKEY_REGEX"; then
-        echo "❌ 公钥格式不正确（需以 ssh-rsa / ssh-ed25519 / ecdsa-sha2-* 等开头）。"
-        exit 1
+        echo "❌ 公钥格式不正确（需以 ssh-rsa / ssh-ed25519 / ecdsa-sha2-* 等开头），跳过。"
+        return 1
     fi
 
     mkdir -p /root/.ssh
@@ -39,11 +47,29 @@ add_pubkey_interactively() {
     if [ -f "$AUTH_KEYS" ] && grep -qxF "$pubkey" "$AUTH_KEYS"; then
         echo "ℹ️  该公钥已存在，跳过写入。"
     else
+        # 确保以换行符结尾，避免和上一行拼到一起
+        if [ -f "$AUTH_KEYS" ] && [ -s "$AUTH_KEYS" ] && [ "$(tail -c1 "$AUTH_KEYS" | wc -l)" -eq 0 ]; then
+            printf '\n' >> "$AUTH_KEYS"
+        fi
         printf '%s\n' "$pubkey" >> "$AUTH_KEYS"
         echo "✅ 公钥已写入 $AUTH_KEYS"
     fi
     chmod 600 "$AUTH_KEYS"
     chown -R root:root /root/.ssh
+    return 0
+}
+
+add_pubkeys_loop() {
+    # 循环添加，至少要确保最后存在一条合法公钥才算"成功"。
+    while true; do
+        add_pubkey_interactively || true
+        echo ""
+        read -r -p "继续添加另一个公钥？输入 y 继续，其他任意键结束: " again
+        case "$again" in
+            y|Y) ;;
+            *) break ;;
+        esac
+    done
 }
 
 current_ssh_port() {
@@ -107,19 +133,19 @@ apply_ssh_port() {
     fi
 }
 
-# 1. 检查 root 是否已配置 SSH 公钥；没有就引导添加
+# 1. 检查 root 是否已配置 SSH 公钥；支持添加 1 条或多条
+ensure_tty
 if ! has_valid_key; then
     echo "⚠️  未检测到有效的 root SSH 公钥（$AUTH_KEYS 不存在 / 为空 / 无合法公钥）。"
     echo ""
     echo "关闭密码登录前必须先确保密钥登录可用，否则会被锁在服务器外。"
     echo ""
     echo "请选择："
-    echo "  1) 现在粘贴公钥添加 (推荐)"
+    echo "  1) 现在粘贴公钥添加 (可连续添加多条，推荐)"
     echo "  2) 退出，我自己去添加后再运行"
-    ensure_tty
     read -r -p "请输入 [1/2] (默认 2): " choice
     case "${choice:-2}" in
-        1) add_pubkey_interactively ;;
+        1) add_pubkeys_loop ;;
         *) echo "已退出。请添加公钥后再运行本脚本。"; exit 0 ;;
     esac
 
@@ -127,18 +153,29 @@ if ! has_valid_key; then
         echo "❌ 添加后仍未检测到有效公钥，已中止。"
         exit 1
     fi
-
+else
+    echo "✅ 已检测到 $(key_count) 条 root SSH 公钥。"
     echo ""
-    echo "⚠️  请新开一个终端用密钥登录测试，确认成功后再继续。"
-    echo "    一旦关闭密码登录，未通过密钥测试会导致无法登录！"
-    read -r -p "确认密钥登录已测试通过？输入 yes 继续，其他任意键退出: " confirm
-    if [ "$confirm" != "yes" ]; then
-        echo "已退出。等你确认密钥可用后再运行。"
-        exit 0
-    fi
+    echo "是否需要再添加更多公钥？"
+    echo "  1) 继续添加 (可连续添加多条)"
+    echo "  2) 不添加，进入后续步骤 (推荐)"
+    read -r -p "请输入 [1/2] (默认 2): " more_choice
+    case "${more_choice:-2}" in
+        1) add_pubkeys_loop ;;
+        *) ;;
+    esac
 fi
 
-echo "✅ 已检测到 root SSH 公钥，继续执行。"
+echo ""
+echo "📋 当前 $AUTH_KEYS 里共有 $(key_count) 条合法公钥。"
+echo ""
+echo "⚠️  请新开一个终端用密钥登录测试，确认 **每一把** 你打算保留的密钥都能成功登录。"
+echo "    一旦关闭密码登录，未通过密钥测试会导致无法登录！"
+read -r -p "确认密钥登录已测试通过？输入 yes 继续，其他任意键退出: " confirm
+if [ "$confirm" != "yes" ]; then
+    echo "已退出。等你确认密钥可用后再运行。"
+    exit 0
+fi
 
 # 2. SSH 端口设置（交互）
 ensure_tty

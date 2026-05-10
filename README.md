@@ -8,9 +8,10 @@ One-click SSH hardening scripts.
 Closes SSH password-based login and locks the root password.
 
 Interactive flow:
-1. Verify `/root/.ssh/authorized_keys` has a valid public key. If not, you can paste one
-   and the script will install it (with correct permissions).
-2. Confirm key-based login works before going further — so you won't get locked out.
+1. Verify `/root/.ssh/authorized_keys`. If empty, paste one or more public keys; if it
+   already has keys, you can choose to append more. Duplicates are skipped automatically.
+2. Confirm key-based login works (for **every** key you intend to keep) before going further
+   — so you won't get locked out.
 3. Optionally change the SSH port. The script suggests a random unused port in
    **50000–65530**; press Enter to apply, type a custom port, or `n` to keep the current one.
 4. Disable `PasswordAuthentication` / `KbdInteractiveAuthentication` /
