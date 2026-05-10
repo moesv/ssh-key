@@ -4,7 +4,7 @@ One-click SSH hardening scripts.
 
 ## Scripts
 
-### disable-root-password-login.sh
+### harden.sh
 Closes SSH password-based login and locks the root password.
 
 Interactive flow:
@@ -22,7 +22,7 @@ security group. If you change the port, make sure the new port is allowed there 
 ## Usage
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/moesv/ssh-key/main/disable-root-password-login.sh -o disable-root-password-login.sh && chmod +x disable-root-password-login.sh && bash disable-root-password-login.sh
+curl -fsSL https://raw.githubusercontent.com/moesv/ssh-key/main/harden.sh -o harden.sh && chmod +x harden.sh && bash harden.sh
 ```
 
 > Run with `bash <file>` (not `curl ... | bash`), the script needs an interactive terminal
