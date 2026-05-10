@@ -161,14 +161,6 @@ fi
 
 echo ""
 echo "📋 当前 $AUTH_KEYS 里共有 $(key_count) 条合法公钥。"
-echo ""
-echo "⚠️  请新开一个终端用密钥登录测试，确认 **每一把** 你打算保留的密钥都能成功登录。"
-echo "    一旦关闭密码登录，未通过密钥测试会导致无法登录！"
-read -r -p "确认密钥登录已测试通过？输入 yes 继续，其他任意键退出: " confirm
-if [ "$confirm" != "yes" ]; then
-    echo "已退出。等你确认密钥可用后再运行。"
-    exit 0
-fi
 
 # 2. SSH 端口设置（直接随机，y/n 确认）
 ensure_tty
@@ -190,7 +182,30 @@ else
     echo "⚠️  无法生成可用的随机端口，保持当前端口 ${CUR_PORT}"
 fi
 
-# 3. 备份配置文件
+# 3. 最终确认（所有选项都收齐后，最后一道闸）
+TARGET_PORT="${NEW_PORT:-$CUR_PORT}"
+echo ""
+echo "════════════════════════════════════════════════════════════"
+echo "  最终确认 — 即将应用："
+echo "    SSH 端口        : ${TARGET_PORT}${NEW_PORT:+   (将从 ${CUR_PORT} 切换)}"
+echo "    授权公钥数量    : $(key_count)"
+echo "    密码 / 键盘交互登录 : 关闭"
+echo "    root 系统密码   : 锁定"
+echo "════════════════════════════════════════════════════════════"
+echo ""
+echo "⚠️  请先做以下检查再继续，否则可能被锁在服务器外："
+echo "    1. 在新开终端用 ssh -p ${CUR_PORT} root@<server-ip> 测试 **每一把** 公钥能成功登录"
+if [ -n "$NEW_PORT" ]; then
+    echo "    2. 系统防火墙 (ufw/firewalld/iptables) 已放行 ${NEW_PORT}/tcp"
+    echo "    3. 云厂商安全组已放行 ${NEW_PORT}/tcp"
+fi
+read -r -p "全部确认无误？输入 yes 继续，其他任意键退出: " confirm
+if [ "$confirm" != "yes" ]; then
+    echo "已退出。请测试通过后再运行。"
+    exit 0
+fi
+
+# 4. 备份配置文件
 echo ""
 echo "🔄 备份并修改 SSH 配置..."
 cp /etc/ssh/sshd_config "/etc/ssh/sshd_config.bak_pwd_$(date +%s)"
