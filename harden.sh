@@ -79,13 +79,6 @@ current_ssh_port() {
     echo "$p"
 }
 
-valid_port() {
-    case "${1:-}" in
-        ''|*[!0-9]*) return 1 ;;
-    esac
-    [ "$1" -ge 1 ] && [ "$1" -le 65535 ]
-}
-
 port_in_use() {
     local p="$1"
     if command -v ss >/dev/null 2>&1; then
@@ -177,51 +170,25 @@ if [ "$confirm" != "yes" ]; then
     exit 0
 fi
 
-# 2. SSH 端口设置（交互）
+# 2. SSH 端口设置（直接随机，y/n 确认）
 ensure_tty
 CUR_PORT="$(current_ssh_port)"
 SUGGEST="$(random_high_port || true)"
 
+NEW_PORT=""
 echo ""
 echo "🔧 SSH 端口设置"
 echo "    当前端口: ${CUR_PORT}"
 if [ -n "${SUGGEST}" ]; then
-    echo "    建议随机端口: ${SUGGEST}  (50000-65530 未占用)"
+    echo "    随机端口: ${SUGGEST}  (50000-65530 内未占用)"
+    read -r -p "是否切换到随机端口 ${SUGGEST}? [Y/n] (回车=切换): " port_choice
+    case "${port_choice:-Y}" in
+        n|N) echo "保持当前端口 ${CUR_PORT}" ;;
+        *)   NEW_PORT="$SUGGEST" ;;
+    esac
+else
+    echo "⚠️  无法生成可用的随机端口，保持当前端口 ${CUR_PORT}"
 fi
-echo ""
-echo "    回车  = 使用建议的随机端口${SUGGEST:+ ${SUGGEST}}"
-echo "    数字  = 使用你输入的自定义端口 (1-65535)"
-echo "    n/N  = 保持当前端口 ${CUR_PORT}"
-read -r -p "请输入选项: " port_choice
-
-NEW_PORT=""
-case "${port_choice}" in
-    "")
-        if [ -n "${SUGGEST}" ]; then
-            NEW_PORT="$SUGGEST"
-        else
-            echo "⚠️  没有可用的随机端口，保持当前端口 ${CUR_PORT}"
-        fi
-        ;;
-    n|N)
-        echo "保持当前端口 ${CUR_PORT}"
-        ;;
-    *)
-        if ! valid_port "$port_choice"; then
-            echo "❌ 无效的端口号: $port_choice"
-            exit 1
-        fi
-        if [ "$port_choice" = "$CUR_PORT" ]; then
-            echo "输入端口与当前端口一致，保持不变。"
-        else
-            if port_in_use "$port_choice"; then
-                echo "❌ 端口 $port_choice 已被占用，已中止。"
-                exit 1
-            fi
-            NEW_PORT="$port_choice"
-        fi
-        ;;
-esac
 
 # 3. 备份配置文件
 echo ""
@@ -258,12 +225,6 @@ if sshd -t; then
     systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null
     echo "✅ SSH 配置已更新！当前门禁状态如下："
     sshd -T | grep -iE "^(port|passwordauthentication|kbdinteractiveauthentication|challengeresponseauthentication)"
-    if [ -n "$NEW_PORT" ]; then
-        echo ""
-        echo "⚠️  端口已切换到 ${NEW_PORT}。脚本未改防火墙——请先确认放行规则到位，再保留当前会话、新开终端测试："
-        echo "      ssh -p ${NEW_PORT} root@<server-ip>"
-        echo "    在确认能用新端口登录之前，不要关闭当前会话！"
-    fi
 else
     echo "❌ 警告：配置出现语法错误，已中止重启，请检查。"
     exit 1
@@ -274,3 +235,27 @@ echo -e "\n🔄 正在锁定 root 账户系统密码..."
 passwd -l root
 echo "✅ root 密码已彻底锁定！当前底层状态如下 (看到 L 代表成功)："
 passwd -S root
+
+# 8. 收尾：打印新配置摘要
+FINAL_PORT="$(current_ssh_port)"
+SERVER_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+[ -z "${SERVER_IP:-}" ] && SERVER_IP="<server-ip>"
+
+echo ""
+echo "════════════════════════════════════════════════════════════"
+echo "  🎉 SSH 加固完成"
+echo "════════════════════════════════════════════════════════════"
+echo "  SSH 端口        : ${FINAL_PORT}${NEW_PORT:+   (已从 ${CUR_PORT} 切换)}"
+echo "  授权公钥数量    : $(key_count)"
+echo "  密码登录        : 已关闭"
+echo "  键盘交互登录    : 已关闭"
+echo "  root 系统密码   : 已锁定"
+echo ""
+echo "  下次登录命令    :"
+echo "      ssh -p ${FINAL_PORT} root@${SERVER_IP}"
+if [ -n "$NEW_PORT" ]; then
+    echo ""
+    echo "  ⚠️  端口已变更，请在 **不关闭当前会话** 的前提下，新开一个终端测试登录。"
+    echo "     脚本未修改防火墙，请确保 ${FINAL_PORT}/tcp 在系统防火墙和云厂商安全组里都已放行。"
+fi
+echo "════════════════════════════════════════════════════════════"

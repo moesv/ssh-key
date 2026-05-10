@@ -12,10 +12,12 @@ Interactive flow:
    already has keys, you can choose to append more. Duplicates are skipped automatically.
 2. Confirm key-based login works (for **every** key you intend to keep) before going further
    — so you won't get locked out.
-3. Optionally change the SSH port. The script suggests a random unused port in
-   **50000–65530**; press Enter to apply, type a custom port, or `n` to keep the current one.
+3. Offer a random unused port in **50000–65530**: press Enter to switch to it,
+   or type `n` to keep the current port.
 4. Disable `PasswordAuthentication` / `KbdInteractiveAuthentication` /
    `ChallengeResponseAuthentication`, restart sshd, and `passwd -l root`.
+5. Print a summary block with the final port, authorized-key count, and the
+   exact `ssh -p <port> root@<ip>` command to use next time.
 
 The script only edits `sshd_config` — it does **not** touch your firewall or cloud
 security group. If you change the port, make sure the new port is allowed there yourself.
