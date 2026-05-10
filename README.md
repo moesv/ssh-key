@@ -21,12 +21,20 @@ security group. If you change the port, make sure the new port is allowed there 
 
 ## Usage
 
+One-liner (preferred — runs directly, no file left behind):
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/moesv/ssh-key/main/harden.sh -o harden.sh && chmod +x harden.sh && bash harden.sh
+bash <(curl -fsSL https://raw.githubusercontent.com/moesv/ssh-key/main/harden.sh)
 ```
 
-> Run with `bash <file>` (not `curl ... | bash`), the script needs an interactive terminal
-> to read the public key you paste.
+Or download then run (use this if your terminal app mangles URLs / `<(...)`):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/moesv/ssh-key/main/harden.sh -o harden.sh && bash harden.sh
+```
+
+> Do **not** use `curl ... | bash` — the script is interactive (asks you to paste a
+> public key, choose a port, etc.) and a pipe takes away its stdin.
 
 ## Warning
 
