@@ -205,19 +205,22 @@ if [ "$confirm" != "yes" ]; then
     exit 0
 fi
 
-# 4. 备份配置文件
+# 4. 锁定 root 账户底层密码
+echo ""
+echo "🔄 正在锁定 root 账户系统密码..."
+passwd -l root
+echo "✅ root 密码已彻底锁定！当前底层状态如下 (看到 L 代表成功)："
+passwd -S root
+
+# 5. 备份配置 + 改 sshd_config + 重启
 echo ""
 echo "🔄 备份并修改 SSH 配置..."
 cp /etc/ssh/sshd_config "/etc/ssh/sshd_config.bak_pwd_$(date +%s)"
 
-# 4. 应用端口（如果需要）—— 只改 sshd，不动防火墙
 if [ -n "$NEW_PORT" ]; then
     apply_ssh_port "$NEW_PORT"
-    echo "ℹ️  注意：本脚本不修改防火墙 / 安全组。"
-    echo "    请自行确保 ${NEW_PORT}/tcp 在系统防火墙 (ufw/firewalld/iptables) 和云厂商安全组里均已放行。"
 fi
 
-# 5. 关闭密码 / 键盘交互登录
 FILES=$(find /etc/ssh/sshd_config /etc/ssh/sshd_config.d/ -type f 2>/dev/null)
 for f in $FILES; do
     sed -i -E "s/^#?[[:space:]]*PasswordAuthentication[[:space:]]+.*/PasswordAuthentication no/i" "$f"
@@ -235,7 +238,6 @@ if ! grep -qhi "^ChallengeResponseAuthentication no" $FILES; then
     sed -i "1i ChallengeResponseAuthentication no" /etc/ssh/sshd_config
 fi
 
-# 6. 测试语法并重启服务
 if sshd -t; then
     systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null
     echo "✅ SSH 配置已更新！当前门禁状态如下："
@@ -245,13 +247,7 @@ else
     exit 1
 fi
 
-# 7. 锁定 root 账户底层密码
-echo -e "\n🔄 正在锁定 root 账户系统密码..."
-passwd -l root
-echo "✅ root 密码已彻底锁定！当前底层状态如下 (看到 L 代表成功)："
-passwd -S root
-
-# 8. 收尾：打印新配置摘要
+# 6. 收尾：打印新配置摘要
 FINAL_PORT="$(current_ssh_port)"
 SERVER_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 [ -z "${SERVER_IP:-}" ] && SERVER_IP="<server-ip>"
