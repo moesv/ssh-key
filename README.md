@@ -6,7 +6,9 @@ One-click SSH hardening scripts.
 
 ### disable-root-password-login.sh
 Closes SSH password-based login and locks the root password.
-Before making changes, it checks whether `/root/.ssh/authorized_keys` exists and is non-empty.
+Before making changes, it checks `/root/.ssh/authorized_keys` for a valid public key.
+If none is found, it prompts you to paste one and then asks you to confirm key login works
+before continuing — so you won't get locked out.
 
 ## Usage
 
@@ -14,7 +16,10 @@ Before making changes, it checks whether `/root/.ssh/authorized_keys` exists and
 curl -fsSL https://raw.githubusercontent.com/moesv/ssh-key/main/disable-root-password-login.sh -o disable-root-password-login.sh && chmod +x disable-root-password-login.sh && bash disable-root-password-login.sh
 ```
 
+> Run with `bash <file>` (not `curl ... | bash`), the script needs an interactive terminal
+> to read the public key you paste.
+
 ## Warning
 
-The script now checks whether `/root/.ssh/authorized_keys` exists and is non-empty before continuing.
-Still, make sure SSH key login already works before running it, or you may lock yourself out of the server.
+Even though the script guards against missing keys, you should still test key-based
+login from a separate terminal before answering `yes` to the final confirmation.
