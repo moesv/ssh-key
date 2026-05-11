@@ -175,6 +175,44 @@ EOF
     systemctl restart fail2ban 2>/dev/null || systemctl start fail2ban 2>/dev/null || return 1
 }
 
+# 检查 VPS 是否已经全面加固：四项全中则脚本可以直接退出
+already_hardened() {
+    has_valid_key || return 1
+
+    local port sshd_cfg
+    port="$(current_ssh_port)"
+    [ "$port" != "22" ] || return 1
+
+    sshd_cfg="$(sshd -T 2>/dev/null)" || return 1
+    echo "$sshd_cfg" | grep -qiE "^passwordauthentication no" || return 1
+    echo "$sshd_cfg" | grep -qiE "^kbdinteractiveauthentication no" || return 1
+
+    command -v fail2ban-client >/dev/null 2>&1 || return 1
+    systemctl is-active --quiet fail2ban 2>/dev/null || return 1
+    fail2ban-client status sshd >/dev/null 2>&1 || return 1
+
+    return 0
+}
+
+# 0. 幂等性检查：四项全满足则直接退出
+if already_hardened; then
+    CUR_PORT="$(current_ssh_port)"
+    SERVER_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+    [ -z "${SERVER_IP:-}" ] && SERVER_IP="<server-ip>"
+    echo "════════════════════════════════════════════════════════════"
+    echo "  ✅ 检测到本机已加固，无需重新运行"
+    echo "════════════════════════════════════════════════════════════"
+    echo "  SSH 端口        : ${CUR_PORT} (非默认)"
+    echo "  授权公钥数量    : $(key_count)"
+    echo "  密码 / 键盘交互登录 : 已关闭"
+    echo "  fail2ban        : 已启用 (sshd jail 在用)"
+    echo ""
+    echo "  登录命令        :"
+    echo "      ssh -p ${CUR_PORT} root@${SERVER_IP}"
+    echo "════════════════════════════════════════════════════════════"
+    exit 0
+fi
+
 # 1. 检查 root 是否已配置 SSH 公钥；支持添加 1 条或多条
 ensure_tty
 KEYS_PREEXISTED=0
