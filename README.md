@@ -10,16 +10,21 @@ Closes SSH password-based login and locks the root password.
 Interactive flow:
 1. Verify `/root/.ssh/authorized_keys`. If empty, paste one or more public keys; if it
    already has keys, you can choose to append more. Duplicates are skipped automatically.
-2. Confirm key-based login works (for **every** key you intend to keep) before going further
-   — so you won't get locked out.
-3. If keys were just added (fresh setup), offer a random unused port in
+2. If keys were just added (fresh setup), offer a random unused port in
    **50000–65530**. If keys already existed, the port prompt is skipped.
-4. Offer to install and enable **fail2ban** with a minimal `sshd` jail
-   (bantime 1h, findtime 10m, maxretry 5).
-5. Disable `PasswordAuthentication` / `KbdInteractiveAuthentication` /
-   `ChallengeResponseAuthentication`, restart sshd, and `passwd -l root`.
-6. Print a summary block with the final port, authorized-key count,
-   fail2ban status, and the exact `ssh -p <port> root@<ip>` command to use next time.
+3. Offer to install **fail2ban** with a minimal `sshd` jail (bantime 1h, findtime 10m, maxretry 5).
+4. Final confirm — preflight checklist with everything that will change. You'll be reminded
+   to test key login (for **every** key) from a separate terminal before answering `yes`.
+
+Then the apply phase, in this order (so a partial failure leaves you with a working login):
+
+5. Back up `sshd_config` (and any existing `jail.local`).
+6. Edit `sshd_config`, `sshd -t`, restart sshd.
+7. Verify sshd is actually listening on the target port.
+8. Install + configure fail2ban (if chosen).
+9. **Lock root password** (last — only after every earlier step succeeded).
+10. Print a summary block with the final port, authorized-key count, fail2ban status,
+    and the exact `ssh -p <port> root@<ip>` command to use next time.
 
 The script only edits `sshd_config` — it does **not** touch your firewall or cloud
 security group. If you change the port, make sure the new port is allowed there yourself.
