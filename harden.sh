@@ -277,18 +277,16 @@ if [ "$confirm" != "yes" ]; then
     exit 0
 fi
 
-# 4. 锁定 root 账户底层密码
+# 5. 备份配置文件
 echo ""
-echo "🔄 正在锁定 root 账户系统密码..."
-passwd -l root
-echo "✅ root 密码已彻底锁定！当前底层状态如下 (看到 L 代表成功)："
-passwd -S root
-
-# 5. 备份配置 + 改 sshd_config + 重启
-echo ""
-echo "🔄 备份并修改 SSH 配置..."
+echo "🔄 备份 SSH 配置..."
 cp /etc/ssh/sshd_config "/etc/ssh/sshd_config.bak_pwd_$(date +%s)"
+if [ -f /etc/fail2ban/jail.local ]; then
+    cp /etc/fail2ban/jail.local "/etc/fail2ban/jail.local.bak_$(date +%s)"
+fi
 
+# 6. 改 sshd_config + sshd -t + 重启 sshd
+echo "🔄 修改 sshd_config..."
 if [ -n "$NEW_PORT" ]; then
     apply_ssh_port "$NEW_PORT"
 fi
@@ -312,15 +310,38 @@ fi
 
 if sshd -t; then
     systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null
-    echo "✅ SSH 配置已更新！当前门禁状态如下："
+    echo "✅ sshd 已重启。当前门禁状态："
     sshd -T | grep -iE "^(port|passwordauthentication|kbdinteractiveauthentication|challengeresponseauthentication)"
 else
-    echo "❌ 警告：配置出现语法错误，已中止重启，请检查。"
+    echo "❌ sshd_config 语法错误，已中止重启。root 密码仍可用，请修复后重试。"
     exit 1
 fi
 
-# 6. 安装并配置 fail2ban (如选择)
+# 7. 验证 sshd 正在目标端口监听 (失败不阻塞，但提醒用户)
 FINAL_PORT="$(current_ssh_port)"
+echo ""
+echo "🔍 验证 sshd 在端口 ${FINAL_PORT} 上监听..."
+LISTEN_OK=0
+for _ in 1 2 3; do
+    if port_in_use "$FINAL_PORT"; then
+        LISTEN_OK=1
+        break
+    fi
+    sleep 1
+done
+if [ "$LISTEN_OK" = "1" ]; then
+    echo "✅ sshd 正在端口 ${FINAL_PORT} 上监听。"
+else
+    echo "⚠️  未检测到端口 ${FINAL_PORT} 上的监听器！请立刻 systemctl status sshd 检查。"
+    echo "    在确认 sshd 起来之前，**不要** 关闭当前 SSH 会话；root 密码也还没锁定，可作为应急通道。"
+    read -r -p "仍然继续后续步骤（装 fail2ban + 锁 root 密码）？输入 yes 继续，其他键中止: " keep_going
+    if [ "$keep_going" != "yes" ]; then
+        echo "已中止。root 密码未锁，请优先恢复 sshd。"
+        exit 1
+    fi
+fi
+
+# 8. 安装并配置 fail2ban (如选择)
 F2B_STATUS="未安装"
 if [ "$INSTALL_F2B" = "1" ]; then
     echo ""
@@ -334,7 +355,14 @@ if [ "$INSTALL_F2B" = "1" ]; then
     fi
 fi
 
-# 7. 收尾：打印新配置摘要
+# 9. 锁定 root 账户底层密码（最后一步：只有前面都通过才下死手）
+echo ""
+echo "🔄 正在锁定 root 账户系统密码..."
+passwd -l root
+echo "✅ root 密码已锁定（看到 L 代表成功）："
+passwd -S root
+
+# 10. 收尾：打印新配置摘要
 SERVER_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 [ -z "${SERVER_IP:-}" ] && SERVER_IP="<server-ip>"
 
