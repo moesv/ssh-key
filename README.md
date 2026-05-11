@@ -7,7 +7,11 @@ One-click SSH hardening scripts.
 ### harden.sh
 Closes SSH password-based login and locks the root password.
 
-Interactive flow:
+Idempotency: if the host already has authorized keys, a non-default SSH port,
+password & keyboard-interactive auth disabled, and an active fail2ban with the
+sshd jail, the script prints a status and exits without prompting.
+
+Interactive flow (when not yet hardened):
 1. Verify `/root/.ssh/authorized_keys`. If empty, paste one or more public keys; if it
    already has keys, you can choose to append more. Duplicates are skipped automatically.
 2. If keys were just added (fresh setup), offer a random unused port in
