@@ -227,7 +227,6 @@ fi
 
 # 1. 检查 root 是否已配置 SSH 公钥；支持添加 1 条或多条
 ensure_tty
-KEYS_PREEXISTED=0
 if ! has_valid_key; then
     echo "⚠️  未检测到有效的 root SSH 公钥（$AUTH_KEYS 不存在 / 为空 / 无合法公钥）。"
     echo ""
@@ -247,7 +246,6 @@ if ! has_valid_key; then
         exit 1
     fi
 else
-    KEYS_PREEXISTED=1
     echo "✅ 已检测到 $(key_count) 条 root SSH 公钥。"
     echo ""
     echo "是否需要再添加更多公钥？"
@@ -263,29 +261,29 @@ fi
 echo ""
 echo "📋 当前 $AUTH_KEYS 里共有 $(key_count) 条合法公钥。"
 
-# 2. SSH 端口设置：只有初次配置（脚本运行前没有公钥）才提示改端口；
-#    已有公钥的环境通常已经走通既有端口，不做打扰。
+# 2. SSH 端口设置：只在当前还是默认 22 时建议改成高位端口；
+#    已经是非默认端口的环境保持原状。
 ensure_tty
 CUR_PORT="$(current_ssh_port)"
 NEW_PORT=""
 
-if [ "$KEYS_PREEXISTED" = "1" ]; then
+if [ "$CUR_PORT" != "22" ]; then
     echo ""
-    echo "🔧 检测到已存在公钥，跳过端口修改（保持当前端口 ${CUR_PORT}）。"
+    echo "🔧 当前 SSH 端口已是 ${CUR_PORT}（非默认），保持不变。"
 else
     SUGGEST="$(random_high_port || true)"
     echo ""
     echo "🔧 SSH 端口设置"
-    echo "    当前端口: ${CUR_PORT}"
+    echo "    当前端口: 22 (默认，容易被扫)"
     if [ -n "${SUGGEST}" ]; then
         echo "    随机端口: ${SUGGEST}  (50000-65530 内未占用)"
         read -r -p "是否切换到随机端口 ${SUGGEST}? [Y/n] (回车=切换): " port_choice
         case "${port_choice:-Y}" in
-            n|N) echo "保持当前端口 ${CUR_PORT}" ;;
+            n|N) echo "保持当前端口 22" ;;
             *)   NEW_PORT="$SUGGEST" ;;
         esac
     else
-        echo "⚠️  无法生成可用的随机端口，保持当前端口 ${CUR_PORT}"
+        echo "⚠️  无法生成可用的随机端口，保持当前端口 22"
     fi
 fi
 
@@ -316,10 +314,12 @@ fi
 echo "════════════════════════════════════════════════════════════"
 echo ""
 echo "⚠️  请先做以下检查再继续，否则可能被锁在服务器外："
-echo "    1. 在新开终端用 ssh -p ${CUR_PORT} root@<server-ip> 测试 **每一把** 公钥能成功登录"
+echo "    1. 保留当前这个 SSH 会话，**在你本地电脑上另开一个终端窗口**，跑："
+echo "         ssh -p ${CUR_PORT} root@<server-ip>"
+echo "       确认 **每一把** 公钥都能成功登录（不要关掉这个老会话）"
 if [ -n "$NEW_PORT" ]; then
     echo "    2. 系统防火墙 (ufw/firewalld/iptables) 已放行 ${NEW_PORT}/tcp"
-    echo "    3. 云厂商安全组已放行 ${NEW_PORT}/tcp"
+    echo "    3. 云厂商安全组 (阿里云/腾讯云/AWS 等) 已放行 ${NEW_PORT}/tcp"
 fi
 read -r -p "全部确认无误？[y/N] (回车=退出): " confirm
 case "${confirm}" in
@@ -329,10 +329,13 @@ esac
 
 # 5. 备份配置文件
 echo ""
-echo "🔄 备份 SSH 配置..."
-cp /etc/ssh/sshd_config "/etc/ssh/sshd_config.bak_pwd_$(date +%s)"
-if [ -f /etc/fail2ban/jail.local ]; then
-    cp /etc/fail2ban/jail.local "/etc/fail2ban/jail.local.bak_$(date +%s)"
+TS="$(date +%s)"
+echo "🔄 备份配置..."
+cp /etc/ssh/sshd_config "/etc/ssh/sshd_config.bak_pwd_${TS}"
+echo "    sshd_config → /etc/ssh/sshd_config.bak_pwd_${TS}"
+if [ "$INSTALL_F2B" = "1" ] && [ -f /etc/fail2ban/jail.local ]; then
+    cp /etc/fail2ban/jail.local "/etc/fail2ban/jail.local.bak_${TS}"
+    echo "    ⚠️  已有的 /etc/fail2ban/jail.local 将被覆盖（已备份为 jail.local.bak_${TS}）"
 fi
 
 # 6. 改 sshd_config + sshd -t + 重启 sshd
@@ -429,9 +432,9 @@ echo "  fail2ban        : ${F2B_STATUS}"
 echo ""
 echo "  下次登录命令    :"
 echo "      ssh -p ${FINAL_PORT} root@${SERVER_IP}"
+echo ""
+echo "  ⚠️  在你本地电脑另开终端用上面的命令登录验证一次，**确认成功后再关闭当前这个会话**。"
 if [ -n "$NEW_PORT" ]; then
-    echo ""
-    echo "  ⚠️  端口已变更，请在 **不关闭当前会话** 的前提下，新开一个终端测试登录。"
-    echo "     脚本未修改防火墙，请确保 ${FINAL_PORT}/tcp 在系统防火墙和云厂商安全组里都已放行。"
+    echo "     端口已从 ${CUR_PORT} 切到 ${FINAL_PORT}——请确认系统防火墙和云厂商安全组都放行了 ${FINAL_PORT}/tcp。"
 fi
 echo "════════════════════════════════════════════════════════════"
