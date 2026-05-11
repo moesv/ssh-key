@@ -9,7 +9,9 @@ Closes SSH password-based login and locks the root password.
 
 Idempotency: if the host already has authorized keys, a non-default SSH port,
 password & keyboard-interactive auth disabled, and an active fail2ban with the
-sshd jail, the script prints a status and exits without prompting.
+sshd jail, the script enters "maintenance mode" — it prints the current status
+and offers a single `[y/N]` prompt to append more public keys. Choosing `N`
+exits cleanly without touching anything else.
 
 Interactive flow (when not yet hardened):
 1. Verify `/root/.ssh/authorized_keys`. If empty, paste one or more public keys; if it

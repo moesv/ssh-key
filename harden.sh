@@ -194,13 +194,13 @@ already_hardened() {
     return 0
 }
 
-# 0. 幂等性检查：四项全满足则直接退出
+# 0. 幂等性检查：四项全满足则进入"维护模式"——只允许追加公钥，其他都跳过
 if already_hardened; then
     CUR_PORT="$(current_ssh_port)"
     SERVER_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
     [ -z "${SERVER_IP:-}" ] && SERVER_IP="<server-ip>"
     echo "════════════════════════════════════════════════════════════"
-    echo "  ✅ 检测到本机已加固，无需重新运行"
+    echo "  ✅ 检测到本机已加固"
     echo "════════════════════════════════════════════════════════════"
     echo "  SSH 端口        : ${CUR_PORT} (非默认)"
     echo "  授权公钥数量    : $(key_count)"
@@ -210,6 +210,18 @@ if already_hardened; then
     echo "  登录命令        :"
     echo "      ssh -p ${CUR_PORT} root@${SERVER_IP}"
     echo "════════════════════════════════════════════════════════════"
+    echo ""
+    ensure_tty
+    read -r -p "是否需要追加公钥？[y/N] (回车=退出): " add_choice
+    case "${add_choice}" in
+        y|Y)
+            add_pubkeys_loop
+            echo ""
+            echo "✅ 完成。当前 $AUTH_KEYS 共 $(key_count) 条合法公钥。"
+            echo "   其它加固项已就绪，未做任何修改。"
+            ;;
+        *) ;;
+    esac
     exit 0
 fi
 
