@@ -198,11 +198,12 @@ _R='\033[0m'
 printf '%b\n' "\${_C1}══════════════════════════════════════════════════════════\${_R}"
 printf '              %bServer Hardened by harden.sh%b\n' "\${_C1}" "\${_R}"
 printf '%b\n' "\${_C1}══════════════════════════════════════════════════════════\${_R}"
-printf '  Login User:  %b%s%b\n' "\${_C2}" "\$(id -un)" "\${_R}"
-printf '  SSH Port:    %b%s%b\n' "\${_C2}" '${port}' "\${_R}"
-printf '  Auth Type:   %b%s%b\n' "\${_C2}" '${auth}' "\${_R}"
-printf '  fail2ban:    %b%s%b\n' "\${_C2}" '${f2b}' "\${_R}"
-printf '  Firewall:    %bMake sure TCP/%s is allowed%b\n' "\${_C3}" '${port}' "\${_R}"
+printf '  Login User:    %b%s%b\n' "\${_C2}" "\$(id -un)" "\${_R}"
+printf '  SSH Port:      %b%s%b\n' "\${_C2}" '${port}' "\${_R}"
+printf '  Password Auth: %bDisabled%b\n' "\${_C2}" "\${_R}"
+printf '  Auth Type:     %b%s%b\n' "\${_C2}" '${auth}' "\${_R}"
+printf '  fail2ban:      %b%s%b\n' "\${_C2}" '${f2b}' "\${_R}"
+printf '  Firewall:      %bMake sure TCP/%s is allowed%b\n' "\${_C3}" '${port}' "\${_R}"
 printf '%b\n' "\${_C1}══════════════════════════════════════════════════════════\${_R}"
 
 unset _C1 _C2 _C3 _R
