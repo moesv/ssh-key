@@ -16,8 +16,8 @@ exits cleanly without touching anything else.
 Interactive flow (when not yet hardened):
 1. Verify `/root/.ssh/authorized_keys`. If empty, paste one or more public keys; if it
    already has keys, you can choose to append more. Duplicates are skipped automatically.
-2. If keys were just added (fresh setup), offer a random unused port in
-   **50000–65530**. If keys already existed, the port prompt is skipped.
+2. If the current SSH port is still **22**, offer a random unused port in
+   50000–65530. If a non-default port is already in use, the port prompt is skipped.
 3. Offer to install **fail2ban** with a minimal `sshd` jail (bantime 1h, findtime 10m, maxretry 5).
 4. Final confirm — preflight checklist with everything that will change. You'll be reminded
    to test key login (for **every** key) from a separate terminal before answering `yes`.
