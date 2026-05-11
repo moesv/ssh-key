@@ -271,11 +271,11 @@ if [ -n "$NEW_PORT" ]; then
     echo "    2. 系统防火墙 (ufw/firewalld/iptables) 已放行 ${NEW_PORT}/tcp"
     echo "    3. 云厂商安全组已放行 ${NEW_PORT}/tcp"
 fi
-read -r -p "全部确认无误？输入 yes 继续，其他任意键退出: " confirm
-if [ "$confirm" != "yes" ]; then
-    echo "已退出。请测试通过后再运行。"
-    exit 0
-fi
+read -r -p "全部确认无误？[y/N] (回车=退出): " confirm
+case "${confirm}" in
+    y|Y) ;;
+    *) echo "已退出。请测试通过后再运行。"; exit 0 ;;
+esac
 
 # 5. 备份配置文件
 echo ""
@@ -334,11 +334,11 @@ if [ "$LISTEN_OK" = "1" ]; then
 else
     echo "⚠️  未检测到端口 ${FINAL_PORT} 上的监听器！请立刻 systemctl status sshd 检查。"
     echo "    在确认 sshd 起来之前，**不要** 关闭当前 SSH 会话；root 密码也还没锁定，可作为应急通道。"
-    read -r -p "仍然继续后续步骤（装 fail2ban + 锁 root 密码）？输入 yes 继续，其他键中止: " keep_going
-    if [ "$keep_going" != "yes" ]; then
-        echo "已中止。root 密码未锁，请优先恢复 sshd。"
-        exit 1
-    fi
+    read -r -p "仍然继续后续步骤（装 fail2ban + 锁 root 密码）？[y/N] (回车=中止): " keep_going
+    case "${keep_going}" in
+        y|Y) ;;
+        *) echo "已中止。root 密码未锁，请优先恢复 sshd。"; exit 1 ;;
+    esac
 fi
 
 # 8. 安装并配置 fail2ban (如选择)
