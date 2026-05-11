@@ -19,18 +19,21 @@ Interactive flow (when not yet hardened):
 2. If the current SSH port is still **22**, offer a random unused port in
    50000–65530. If a non-default port is already in use, the port prompt is skipped.
 3. Offer to install **fail2ban** with a minimal `sshd` jail (bantime 1h, findtime 10m, maxretry 5).
-4. Final confirm — preflight checklist with everything that will change. You'll be reminded
+4. Offer to install a **login banner** at `/etc/profile.d/00-server-init.sh` that prints
+   the SSH port / user / auth type / fail2ban status on every interactive login.
+5. Final confirm — preflight checklist with everything that will change. You'll be reminded
    to test key login (for **every** key) from a separate terminal before answering `yes`.
 
 Then the apply phase, in this order (so a partial failure leaves you with a working login):
 
-5. Back up `sshd_config` (and any existing `jail.local`).
-6. Edit `sshd_config`, `sshd -t`, restart sshd.
-7. Verify sshd is actually listening on the target port.
-8. Install + configure fail2ban (if chosen).
-9. **Lock root password** (last — only after every earlier step succeeded).
-10. Print a summary block with the final port, authorized-key count, fail2ban status,
-    and the exact `ssh -p <port> root@<ip>` command to use next time.
+6. Back up `sshd_config` (and any existing `jail.local`).
+7. Edit `sshd_config`, `sshd -t`, restart sshd.
+8. Verify sshd is actually listening on the target port.
+9. Install + configure fail2ban (if chosen).
+10. Install the login banner (if chosen).
+11. **Lock root password** (last — only after every earlier step succeeded).
+12. Print a summary block with the final port, authorized-key count, fail2ban status,
+    banner status, and the exact `ssh -p <port> root@<ip>` command to use next time.
 
 The script only edits `sshd_config` — it does **not** touch your firewall or cloud
 security group. If you change the port, make sure the new port is allowed there yourself.
